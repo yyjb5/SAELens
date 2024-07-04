@@ -1,0 +1,48 @@
+name: Deploy Docs master
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '.vscode/**'
+      - '.gitignore'
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - '.vscode/**'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run the workflow on'
+        required: true
+        default: 'master' 
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install Dependencies
+        run: poetry install --no-root
+
+      - name: Deploy website
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: poetry run mkdocs gh-deploy --force

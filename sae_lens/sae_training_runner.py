@@ -199,8 +199,10 @@ class SAETrainingRunner:
         save_file(log_feature_sparsities, log_feature_sparsity_path)
 
         if trainer.cfg.log_to_wandb and os.path.exists(log_feature_sparsity_path):
+            other_name = self.sae.get_name().replace('/', '_')
             model_artifact = wandb.Artifact(
-                f"{self.sae.get_name()}",
+                # f"{self.sae.get_name()}",
+                other_name,
                 type="model",
                 metadata=dict(trainer.cfg.__dict__),
             )
@@ -211,7 +213,8 @@ class SAETrainingRunner:
             wandb.log_artifact(model_artifact, aliases=wandb_aliases)
 
             sparsity_artifact = wandb.Artifact(
-                f"{self.sae.get_name()}_log_feature_sparsity",
+                # f"{self.sae.get_name()}_log_feature_sparsity",
+                other_name,
                 type="log_feature_sparsity",
                 metadata=dict(trainer.cfg.__dict__),
             )

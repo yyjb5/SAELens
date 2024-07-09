@@ -64,7 +64,7 @@ def run_evals(
     else:
         original_act = cache[hook_name]
 
-    # normalise if necessary
+    # normalise if necessary (necessary in training only, otherwise we should fold the scaling in)
     if activation_store.normalize_activations == "expected_average_only_in":
         original_act = activation_store.apply_norm_scaling_factor(original_act)
 
@@ -72,6 +72,10 @@ def run_evals(
     sae_out = sae.decode(sae.encode(original_act.to(sae.device))).to(
         original_act.device
     )
+
+    if activation_store.normalize_activations == "expected_average_only_in":
+        sae_out = activation_store.unscale(sae_out)
+
     del cache
 
     l2_norm_in = torch.norm(original_act, dim=-1)
@@ -199,7 +203,7 @@ def get_recons_loss(
         if activation_store.normalize_activations == "expected_average_only_in":
             activations = activation_store.apply_norm_scaling_factor(activations)
 
-        new_activations = sae.decoder(sae.encode(activations[:, :, head_index])).to(
+        new_activations = sae.decode(sae.encode(activations[:, :, head_index])).to(
             activations.dtype
         )
         activations[:, :, head_index] = new_activations
@@ -209,10 +213,16 @@ def get_recons_loss(
             activations = activation_store.unscale(activations)
         return activations.to(original_device)
 
-    def zero_ablate_hook(activations: torch.Tensor, hook: Any):
+    def standard_zero_ablate_hook(activations: torch.Tensor, hook: Any):
         original_device = activations.device
         activations = activations.to(sae.device)
         activations = torch.zeros_like(activations)
+        return activations.to(original_device)
+
+    def single_head_zero_ablate_hook(activations: torch.Tensor, hook: Any):
+        original_device = activations.device
+        activations = activations.to(sae.device)
+        activations[:, :, head_index] = torch.zeros_like(activations[:, :, head_index])
         return activations.to(original_device)
 
     # we would include hook z, except that we now have base SAE's
@@ -221,10 +231,13 @@ def get_recons_loss(
     if any(substring in hook_name for substring in has_head_dim_key_substrings):
         if head_index is None:
             replacement_hook = all_head_replacement_hook
+            zero_ablate_hook = standard_zero_ablate_hook
         else:
             replacement_hook = single_head_replacement_hook
+            zero_ablate_hook = single_head_zero_ablate_hook
     else:
         replacement_hook = standard_replacement_hook
+        zero_ablate_hook = standard_zero_ablate_hook
 
     recons_loss = model.run_with_hooks(
         batch_tokens,

@@ -17,7 +17,8 @@ from transformer_lens.hook_points import HookedRootModule, HookPoint
 from sae_lens.config import DTYPE_MAP
 from sae_lens.toolkit.pretrained_sae_loaders import (
     NAMED_PRETRAINED_SAE_LOADERS,
-    load_pretrained_sae_lens_sae_components,
+    handle_config_defaulting,
+    read_sae_from_disk,
 )
 from sae_lens.toolkit.pretrained_saes_directory import get_pretrained_saes_directory
 
@@ -130,10 +131,10 @@ class SAE(HookedRootModule):
 
         if self.cfg.architecture == "standard":
             self.initialize_weights_basic()
-            self.encode_fn = self.encode
+            self.encode = self.encode_standard
         elif self.cfg.architecture == "gated":
             self.initialize_weights_gated()
-            self.encode_fn = self.encode_gated
+            self.encode = self.encode_gated
 
         # handle presence / absence of scaling factor.
         if self.cfg.finetuning_scaling_factor:
@@ -280,7 +281,7 @@ class SAE(HookedRootModule):
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        feature_acts = self.encode_fn(x)
+        feature_acts = self.encode(x)
         sae_out = self.decode(feature_acts)
 
         # TEMP
@@ -353,7 +354,7 @@ class SAE(HookedRootModule):
 
         # Gating path
         gating_pre_activation = sae_in @ self.W_enc + self.b_gate
-        active_features = (gating_pre_activation > 0).float()
+        active_features = (gating_pre_activation > 0).to(self.dtype)
 
         # Magnitude path with weight sharing
         magnitude_pre_activation = self.hook_sae_acts_pre(
@@ -365,7 +366,7 @@ class SAE(HookedRootModule):
 
         return active_features * feature_magnitudes
 
-    def encode(
+    def encode_standard(
         self, x: Float[torch.Tensor, "... d_in"]
     ) -> Float[torch.Tensor, "... d_sae"]:
         """
@@ -425,6 +426,11 @@ class SAE(HookedRootModule):
         self, activation_norm_scaling_factor: float
     ):
         self.W_enc.data = self.W_enc.data * activation_norm_scaling_factor
+        # previously weren't doing this.
+        self.W_dec.data = self.W_dec.data / activation_norm_scaling_factor
+
+        # once we normalize, we shouldn't need to scale activations.
+        self.cfg.normalize_activations = "none"
 
     def save_model(self, path: str, sparsity: Optional[torch.Tensor] = None):
 
@@ -449,11 +455,18 @@ class SAE(HookedRootModule):
         cls, path: str, device: str = "cpu", dtype: str = "float32"
     ) -> "SAE":
 
-        config_path = os.path.join(path, "cfg.json")
-        weight_path = os.path.join(path, "sae_weights.safetensors")
+        # get the config
+        config_path = os.path.join(path, SAE_CFG_PATH)
+        with open(config_path, "r") as f:
+            cfg_dict = json.load(f)
+        cfg_dict = handle_config_defaulting(cfg_dict)
 
-        cfg_dict, state_dict, _ = load_pretrained_sae_lens_sae_components(
-            config_path, weight_path, device, dtype
+        weight_path = os.path.join(path, SAE_WEIGHTS_PATH)
+        cfg_dict, state_dict = read_sae_from_disk(
+            cfg_dict=cfg_dict,
+            weight_path=weight_path,
+            device=device,
+            dtype=DTYPE_MAP[dtype],
         )
 
         sae_cfg = SAEConfig.from_dict(cfg_dict)
@@ -507,6 +520,7 @@ class SAE(HookedRootModule):
             folder_name=hf_path,
             device=device,
             force_download=False,
+            cfg_overrides=sae_directory[release].config_overrides,
         )
 
         sae = cls(SAEConfig.from_dict(cfg_dict))

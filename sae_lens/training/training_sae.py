@@ -2,6 +2,7 @@
 https://github.com/ArthurConmy/sae/blob/main/sae/model.py
 """
 
+import json
 import os
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -11,11 +12,16 @@ import torch
 from jaxtyping import Float
 from torch import nn
 
-from sae_lens.config import LanguageModelSAERunnerConfig
+from sae_lens.config import DTYPE_MAP, LanguageModelSAERunnerConfig
 from sae_lens.sae import SAE, SAEConfig
 from sae_lens.toolkit.pretrained_sae_loaders import (
-    load_pretrained_sae_lens_sae_components,
+    handle_config_defaulting,
+    read_sae_from_disk,
 )
+
+SPARSITY_PATH = "sparsity.safetensors"
+SAE_WEIGHTS_PATH = "sae_weights.safetensors"
+SAE_CFG_PATH = "cfg.json"
 
 
 @dataclass
@@ -176,7 +182,7 @@ class TrainingSAE(SAE):
             ), "Gated SAEs do not support ghost grads"
             assert self.use_error_term is False, "Gated SAEs do not support error terms"
 
-    def encode(
+    def encode_standard(
         self, x: Float[torch.Tensor, "... d_in"]
     ) -> Float[torch.Tensor, "... d_sae"]:
         """
@@ -225,7 +231,7 @@ class TrainingSAE(SAE):
 
         # Gating path with Heaviside step function
         gating_pre_activation = sae_in @ self.W_enc + self.b_gate
-        active_features = (gating_pre_activation > 0).float()
+        active_features = (gating_pre_activation > 0).to(self.dtype)
 
         # Magnitude path with weight sharing
         magnitude_pre_activation = sae_in @ (self.W_enc * self.r_mag.exp()) + self.b_mag
@@ -401,13 +407,19 @@ class TrainingSAE(SAE):
         dtype: str = "float32",
     ) -> "TrainingSAE":
 
-        config_path = os.path.join(path, "cfg.json")
-        weight_path = os.path.join(path, "sae_weights.safetensors")
+        # get the config
+        config_path = os.path.join(path, SAE_CFG_PATH)
+        with open(config_path, "r") as f:
+            cfg_dict = json.load(f)
+        cfg_dict = handle_config_defaulting(cfg_dict)
 
-        cfg_dict, state_dict, _ = load_pretrained_sae_lens_sae_components(
-            config_path, weight_path, device, dtype
+        weight_path = os.path.join(path, SAE_WEIGHTS_PATH)
+        cfg_dict, state_dict = read_sae_from_disk(
+            cfg_dict=cfg_dict,
+            weight_path=weight_path,
+            device=device,
+            dtype=DTYPE_MAP[dtype],
         )
-
         sae_cfg = TrainingSAEConfig.from_dict(cfg_dict)
 
         sae = cls(sae_cfg)

@@ -2,6 +2,80 @@
 
 
 
+## v3.11.2 (2024-07-08)
+
+### Fix
+
+* fix: rename encode_fn to encode and encode to encode_standard (#218) ([`8c09ec1`](https://github.com/jbloomAus/SAELens/commit/8c09ec1ff29bf3212a43b6d65cf5c88c5c318994))
+
+
+## v3.11.1 (2024-07-08)
+
+### Fix
+
+* fix: avoid bfloat16 errors in training gated saes (#217) ([`1e48f86`](https://github.com/jbloomAus/SAELens/commit/1e48f8668537d6b20067cc5862b9805ece5e2a70))
+
+### Unknown
+
+* Update README.md ([`9adba61`](https://github.com/jbloomAus/SAELens/commit/9adba61b03bb90583bea64902bc900091992b0b4))
+
+* Update deploy_docs.yml
+
+Modified this file to install dependencies (using caching for efficiency). ([`e90d5c1`](https://github.com/jbloomAus/SAELens/commit/e90d5c195b02bd450bd7335b83bfb952a58fa29d))
+
+
+## v3.11.0 (2024-07-04)
+
+### Feature
+
+* feat: make pretrained sae directory docs page (#213)
+
+* make pretrained sae directory docs page
+
+* type issue weirdness
+
+* type issue weirdness ([`b8a99ab`](https://github.com/jbloomAus/SAELens/commit/b8a99ab4dfe8f7790a3b15f41e351fbc3b82f1ab))
+
+
+## v3.10.0 (2024-07-04)
+
+### Feature
+
+* feat: make activations_store re start the dataset when it runs out (#207)
+
+* make activations_store re start the dataset when it runs out
+
+* remove misleading comments
+
+* allow StopIteration to bubble up where appropriate
+
+* add test to ensure that stopiteration is raised
+
+* formatting
+
+* more formatting
+
+* format tweak so we can re-try ci
+
+* add deps back ([`91f4850`](https://github.com/jbloomAus/SAELens/commit/91f48502c39cd573d5f28aba2f3295c7694112e6))
+
+* feat: allow models to be passed in as overrides (#210) ([`dd95996`](https://github.com/jbloomAus/SAELens/commit/dd95996efaa46c779b85ead9e52a8342869cfc24))
+
+### Fix
+
+* fix: Activation store factor unscaling fold fix (#212)
+
+* add unscaling to evals
+
+* fix act norm unscaling missing
+
+* improved variance explained, still off for that prompt
+
+* format
+
+* why suddenly a typingerror and only in CI? ([`1db84b5`](https://github.com/jbloomAus/SAELens/commit/1db84b5ca4ab82fae9edbe98c1e9a563ed1eb3c9))
+
+
 ## v3.9.2 (2024-07-03)
 
 ### Fix
